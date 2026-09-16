@@ -229,7 +229,6 @@
     let coveredPolyline, remainingPolyline;
     let fullRoadPath = [];
     let currentSpeed = 0;
-    let lastGpsTimestamp = Date.0;
 
     function createPinIcon(color) {
       const svgPin = `<svg width="22" height="30" viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0ZM12 16C9.79 16 8 14.21 8 12C8 9.79 9.79 8 12 8C14.21 8 16 9.79 16 12C16 14.21 14.21 16 12 16Z" fill="${color}"/></svg>`;
@@ -322,23 +321,34 @@
     }
 
     function updateHeroMarquee(currentLat, currentLng) {
-      const currentSpot = routeData[currentWaypointIndex] ? routeData[currentWaypointIndex].name : "Sirsi";
+      const activeState = waypointsState[currentWaypointIndex] || {};
+      const currentSpotName = routeData[currentWaypointIndex] ? routeData[currentWaypointIndex].name : "Sirsi";
       const nextIndex = Math.min(currentWaypointIndex + 1, routeData.length - 1);
-      const nextSpot = routeData[nextIndex] ? routeData[nextIndex].name : "Destination";
+      const nextSpotName = routeData[nextIndex] ? routeData[nextIndex].name : "Destination";
       const nextTarget = routeData[nextIndex];
 
       let distanceStr = "";
       if (nextTarget && currentLat && currentLng) {
         const distMeters = calculateDistance(currentLat, currentLng, nextTarget.lat, nextTarget.lng);
         if (distMeters >= 1000) {
-          distanceStr = ` | Distance to next stop (${nextSpot}): ${(distMeters / 1000).toFixed(2)} KM`;
+          distanceStr = ` | Distance to next stop (${nextSpotName}): ${(distMeters / 1000).toFixed(2)} KM`;
         } else {
-          distanceStr = ` | Distance to next stop (${nextSpot}): ${Math.round(distMeters)} m`;
+          distanceStr = ` | Distance to next stop (${nextSpotName}): ${Math.round(distMeters)} m`;
         }
       }
 
+      let statusMsg = "";
+      if (activeState.left && currentWaypointIndex > 0) {
+        const prevSpotName = routeData[currentWaypointIndex - 1] ? routeData[currentWaypointIndex - 1].name : "";
+        statusMsg = `🚀 LEFT: ${prevSpotName} ➔ ${currentSpotName}`;
+      } else if (activeState.arrived) {
+        statusMsg = `📍 ARRIVED AT ${currentSpotName}`;
+      } else {
+        statusMsg = `🔥 ON THE WAY TO ${currentSpotName}`;
+      }
+
       const marqueeEl = document.getElementById('live-hero-status');
-      marqueeEl.innerText = `🔥 RIDER CHINMAY IS ON THE WAY! Current Location: ${currentSpot} ➔ Heading to: ${nextSpot}${distanceStr} | Speed: ${currentSpeed} KM/H`;
+      marqueeEl.innerText = `${statusMsg}${distanceStr} | Speed: ${currentSpeed} KM/H`;
     }
 
     function updateScheduleStatusDisplay() {
@@ -417,49 +427,29 @@
       }
 
       if (watchId === null) {
-        const gpsOptions = {
-          enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 60000 // Timeout 60 seconds kar diya taaki jaldi drop na ho
-        };
-
         watchId = navigator.geolocation.watchPosition(
           (position) => {
             const { latitude, longitude, speed } = position.coords;
             currentSpeed = speed ? (speed * 3.6).toFixed(1) : 0;
-            lastGpsTimestamp = Date.now();
 
             db.ref('liveTrack/currentGPS').set({
               lat: latitude,
               lng: longitude,
               speed: currentSpeed,
-              timestamp: lastGpsTimestamp
+              timestamp: Date.now()
             });
 
-            btn.innerText = "🛑 STOP RIDER GPS (TRACKING ON)";
+            btn.innerText = "🛑 STOP LIVE GPS (TRACKING ON)";
             btn.style.background = "#dc2626";
           },
           (error) => {
-            console.warn("GPS Warning/Error: " + error.message);
+            alert("GPS Error: " + error.message);
           },
-          gpsOptions
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
         );
-
-        // Fallback safety check: Agar 30 seconds tak naya data na aaye toh background ping maarega
-        window.gpsIntervalCheck = setInterval(() => {
-          if (watchId !== null && Date.now() - lastGpsTimestamp > 30000) {
-            navigator.geolocation.getCurrentPosition((pos) => {
-              const { latitude, longitude, speed } = pos.coords;
-              currentSpeed = speed ? (speed * 3.6).toFixed(1) : 0;
-              db.ref('liveTrack/currentGPS').update({ lat: latitude, lng: longitude, speed: currentSpeed, timestamp: Date.now() });
-            }, (err) => {}, { enableHighAccuracy: true, timeout: 10000 });
-          }
-        }, 15000);
-
       } else {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
-        if(window.gpsIntervalCheck) clearInterval(window.gpsIntervalCheck);
         btn.innerText = "📡 START RIDER LIVE GPS";
         btn.style.background = "#0284c7";
       }
@@ -494,7 +484,6 @@
 
         let photos = Array.isArray(state.photos) ? state.photos : (state.photo ? [state.photo] : []);
 
-        // Halting Time calculation (inside stop card)
         let haltingTimeHtml = '';
         if (state.arrived && state.left) {
           const [arrH, arrM] = state.arrived.split(':').map(Number);
@@ -507,7 +496,6 @@
           }
         }
 
-        // Travel Duration calculation (OUTSIDE the boxes, placed between items)
         let travelDurationOutsideHtml = '';
         if (idx > 0) {
           const prevState = waypointsState[idx - 1] || {};
@@ -661,6 +649,8 @@
         
         if (data.currentGPS) {
           updateHeroMarquee(data.currentGPS.lat, data.currentGPS.lng);
+        } else {
+          updateHeroMarquee();
         }
       }
     });
