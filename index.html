@@ -326,6 +326,15 @@
       const nextSpotName = routeData[nextIndex] ? routeData[nextIndex].name : "Destination";
       const nextTarget = routeData[nextIndex];
 
+      // Fallback to stop coordinates if GPS lat/lng are missing
+      if (!currentLat || !currentLng) {
+        const currentWaypoint = routeData[currentWaypointIndex];
+        if (currentWaypoint) {
+          currentLat = currentWaypoint.lat;
+          currentLng = currentWaypoint.lng;
+        }
+      }
+
       let distanceStr = "";
       if (nextTarget && currentLat && currentLng) {
         const distMeters = calculateDistance(currentLat, currentLng, nextTarget.lat, nextTarget.lng);
@@ -337,8 +346,6 @@
       }
 
       let statusMsg = "";
-      // Check if user clicked left on the current or previous stop
-      let previousActiveState = waypointsState[currentWaypointIndex - 1] || {};
       if (activeState.left && currentWaypointIndex > 0) {
         const prevSpotName = routeData[currentWaypointIndex - 1] ? routeData[currentWaypointIndex - 1].name : "";
         statusMsg = `🚀 LEFT: ${prevSpotName} ➔ ${currentSpotName}`;
@@ -349,7 +356,9 @@
       }
 
       const marqueeEl = document.getElementById('live-hero-status');
-      marqueeEl.innerText = `${statusMsg}${distanceStr} | Speed: ${currentSpeed} KM/H`;
+      if (marqueeEl) {
+        marqueeEl.innerText = `${statusMsg}${distanceStr} | Speed: ${currentSpeed} KM/H`;
+      }
     }
 
     function updateScheduleStatusDisplay() {
