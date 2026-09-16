@@ -138,7 +138,7 @@
     <div class="brand-wrap">
       <div class="brand-badge">🚴‍♂️ DISPATCH</div>
       <div class="brand-title">
-        <h1>SIRSI GANPATI DARSHAN</h1>
+        <h1>SIRSI GANESH CHATURTHI CYCLE RIDE 2026</h1>
       </div>
     </div>
     <div id="mode-badge" class="status-badge">● LIVE VIEWER</div>
@@ -321,11 +321,9 @@
     }
 
     function updateHeroMarquee(lat, lng) {
-      const activeState = waypointsState[currentWaypointIndex] || {};
-      const currentSpotName = routeData[currentWaypointIndex] ? routeData[currentWaypointIndex].name : "Sirsi";
       const nextIndex = Math.min(currentWaypointIndex + 1, routeData.length - 1);
-      const nextSpotName = routeData[nextIndex] ? routeData[nextIndex].name : "Destination";
       const nextTarget = routeData[nextIndex];
+      const nextSpotName = nextTarget ? nextTarget.name : "Destination";
 
       let useLat = lat || (lastKnownGPS ? lastKnownGPS.lat : null);
       let useLng = lng || (lastKnownGPS ? lastKnownGPS.lng : null);
@@ -345,13 +343,29 @@
         }
       }
 
+      // Check backwards through waypoints to find the most recent stop with an action
       let statusMsg = "";
-      if (activeState.left && currentWaypointIndex > 0) {
-        const prevSpotName = routeData[currentWaypointIndex - 1] ? routeData[currentWaypointIndex - 1].name : "";
-        statusMsg = `🚀 LEFT: ${prevSpotName} ➔ ${currentSpotName}`;
-      } else if (activeState.arrived) {
-        statusMsg = `📍 ARRIVED AT ${currentSpotName}`;
+      let activeIdx = -1;
+      let actionState = null;
+
+      for (let i = routeData.length - 1; i >= 0; i--) {
+        if (waypointsState[i] && (waypointsState[i].left || waypointsState[i].arrived)) {
+          activeIdx = i;
+          actionState = waypointsState[i];
+          break;
+        }
+      }
+
+      if (activeIdx !== -1) {
+        const spotName = routeData[activeIdx].name;
+        if (actionState.left) {
+          const nextStopName = routeData[Math.min(activeIdx + 1, routeData.length - 1)].name;
+          statusMsg = `🚀 LEFT: ${spotName} ➔ ${nextStopName}`;
+        } else if (actionState.arrived) {
+          statusMsg = `📍 ARRIVED AT ${spotName}`;
+        }
       } else {
+        const currentSpotName = routeData[currentWaypointIndex] ? routeData[currentWaypointIndex].name : "Sirsi";
         statusMsg = `🔥 ON THE WAY TO ${currentSpotName}`;
       }
 
@@ -645,14 +659,14 @@
         nextIndex = index;
       }
 
+      waypointsState[index] = currentState;
+
       db.ref('liveTrack').update({
         index: nextIndex,
-        waypoints: { ...waypointsState, [index]: currentState }
+        waypoints: waypointsState
       });
 
-      // Force immediate marquee update locally
       currentWaypointIndex = nextIndex;
-      waypointsState[index] = currentState;
       updateHeroMarquee();
       updateDynamicRoadLines();
       renderTimeline();
