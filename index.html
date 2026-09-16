@@ -79,7 +79,6 @@
     .actual-time-badge{ font-size:.75rem; color:#16a34a; font-weight:700; margin-top:6px; display:block; }
     .halting-time-badge{ font-size:.7rem; color:#d97706; font-weight:700; margin-top:4px; display:block; }
 
-    /* TRAVEL DURATION BETWEEN STOPS */
     .transit-between-badge{
       margin: 4px 0 10px 0;
       background: #e0f2fe;
@@ -338,6 +337,8 @@
       }
 
       let statusMsg = "";
+      // Check if user clicked left on the current or previous stop
+      let previousActiveState = waypointsState[currentWaypointIndex - 1] || {};
       if (activeState.left && currentWaypointIndex > 0) {
         const prevSpotName = routeData[currentWaypointIndex - 1] ? routeData[currentWaypointIndex - 1].name : "";
         statusMsg = `🚀 LEFT: ${prevSpotName} ➔ ${currentSpotName}`;
@@ -496,7 +497,6 @@
           }
         }
 
-        // TRAVEL DURATION PLACED *ABOVE* THE CARD (BETWEEN PREVIOUS AND CURRENT STOP)
         let travelDurationHtml = '';
         if (idx > 0) {
           const prevState = waypointsState[idx - 1] || {};
