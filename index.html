@@ -79,9 +79,9 @@
     .actual-time-badge{ font-size:.75rem; color:#16a34a; font-weight:700; margin-top:6px; display:block; }
     .halting-time-badge{ font-size:.7rem; color:#d97706; font-weight:700; margin-top:4px; display:block; }
 
-    /* TRAVEL DURATION OUTSIDE THE BOX */
+    /* TRAVEL DURATION BETWEEN STOPS */
     .transit-between-badge{
-      margin: 8px 0 12px 0;
+      margin: 4px 0 10px 0;
       background: #e0f2fe;
       border: 1px dashed #0284c7;
       color: #0369a1;
@@ -496,7 +496,8 @@
           }
         }
 
-        let travelDurationOutsideHtml = '';
+        // TRAVEL DURATION PLACED *ABOVE* THE CARD (BETWEEN PREVIOUS AND CURRENT STOP)
+        let travelDurationHtml = '';
         if (idx > 0) {
           const prevState = waypointsState[idx - 1] || {};
           const currState = waypointsState[idx] || {};
@@ -507,13 +508,14 @@
             if (tDiff >= 0) {
               const th = Math.floor(tDiff / 60);
               const tm = tDiff % 60;
-              travelDurationOutsideHtml = `<div class="transit-between-badge">🚗 Travel time from ${routeData[idx - 1].name}: <b>${th > 0 ? th + 'h ' : ''}${tm}m</b></div>`;
+              travelDurationHtml = `<div class="transit-between-badge">🚗 Travel time from ${routeData[idx - 1].name}: <b>${th > 0 ? th + 'h ' : ''}${tm}m</b></div>`;
             }
           }
         }
 
         item.innerHTML = `
           <div class="timeline-node"></div>
+          ${travelDurationHtml}
           <div class="timeline-card">
             <div class="place-name"><span>${idx + 1}. ${pt.name}</span>${isCurrentSpot ? '<span>🚴‍♂️</span>' : ''}</div>
             <div class="sched-time">Scheduled: <b>${pt.time}</b></div>
@@ -547,7 +549,6 @@
               </div>
             ` : ''}
           </div>
-          ${travelDurationOutsideHtml}
         `;
         container.appendChild(item);
       });
