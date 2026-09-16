@@ -228,6 +228,7 @@
     let coveredPolyline, remainingPolyline;
     let fullRoadPath = [];
     let currentSpeed = 0;
+    let lastKnownGPS = null;
 
     function createPinIcon(color) {
       const svgPin = `<svg width="22" height="30" viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0ZM12 16C9.79 16 8 14.21 8 12C8 9.79 9.79 8 12 8C14.21 8 16 9.79 16 12C16 14.21 14.21 16 12 16Z" fill="${color}"/></svg>`;
@@ -319,25 +320,24 @@
       return R * c;
     }
 
-    function updateHeroMarquee(currentLat, currentLng) {
+    function updateHeroMarquee(lat, lng) {
       const activeState = waypointsState[currentWaypointIndex] || {};
       const currentSpotName = routeData[currentWaypointIndex] ? routeData[currentWaypointIndex].name : "Sirsi";
       const nextIndex = Math.min(currentWaypointIndex + 1, routeData.length - 1);
       const nextSpotName = routeData[nextIndex] ? routeData[nextIndex].name : "Destination";
       const nextTarget = routeData[nextIndex];
 
-      // Fallback to stop coordinates if GPS lat/lng are missing
-      if (!currentLat || !currentLng) {
-        const currentWaypoint = routeData[currentWaypointIndex];
-        if (currentWaypoint) {
-          currentLat = currentWaypoint.lat;
-          currentLng = currentWaypoint.lng;
-        }
+      let useLat = lat || (lastKnownGPS ? lastKnownGPS.lat : null);
+      let useLng = lng || (lastKnownGPS ? lastKnownGPS.lng : null);
+
+      if (!useLat || !useLng) {
+        const curPt = routeData[currentWaypointIndex];
+        if (curPt) { useLat = curPt.lat; useLng = curPt.lng; }
       }
 
       let distanceStr = "";
-      if (nextTarget && currentLat && currentLng) {
-        const distMeters = calculateDistance(currentLat, currentLng, nextTarget.lat, nextTarget.lng);
+      if (nextTarget && useLat && useLng) {
+        const distMeters = calculateDistance(useLat, useLng, nextTarget.lat, nextTarget.lng);
         if (distMeters >= 1000) {
           distanceStr = ` | Distance to next stop (${nextSpotName}): ${(distMeters / 1000).toFixed(2)} KM`;
         } else {
@@ -441,6 +441,7 @@
           (position) => {
             const { latitude, longitude, speed } = position.coords;
             currentSpeed = speed ? (speed * 3.6).toFixed(1) : 0;
+            lastKnownGPS = { lat: latitude, lng: longitude };
 
             db.ref('liveTrack/currentGPS').set({
               lat: latitude,
@@ -449,7 +450,7 @@
               timestamp: Date.now()
             });
 
-            btn.innerText = "🛑 STOP LIVE GPS (TRACKING ON)";
+            btn.innerText = "🛑 STOP RIDER LIVE GPS (TRACKING ON)";
             btn.style.background = "#dc2626";
           },
           (error) => {
@@ -468,6 +469,7 @@
     db.ref('liveTrack/currentGPS').on('value', (snapshot) => {
       const gps = snapshot.val();
       if (gps && gps.lat && gps.lng) {
+        lastKnownGPS = { lat: gps.lat, lng: gps.lng };
         const livePos = [gps.lat, gps.lng];
         currentSpeed = gps.speed || 0;
         cycleMarker.setLatLng(livePos);
@@ -647,6 +649,13 @@
         index: nextIndex,
         waypoints: { ...waypointsState, [index]: currentState }
       });
+
+      // Force immediate marquee update locally
+      currentWaypointIndex = nextIndex;
+      waypointsState[index] = currentState;
+      updateHeroMarquee();
+      updateDynamicRoadLines();
+      renderTimeline();
     }
 
     db.ref('liveTrack').on('value', (snapshot) => {
@@ -658,6 +667,7 @@
         updateDynamicRoadLines();
         
         if (data.currentGPS) {
+          lastKnownGPS = { lat: data.currentGPS.lat, lng: data.currentGPS.lng };
           updateHeroMarquee(data.currentGPS.lat, data.currentGPS.lng);
         } else {
           updateHeroMarquee();
